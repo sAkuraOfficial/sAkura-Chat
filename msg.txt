@@ -1,0 +1,10 @@
+µÇÂ¼:
+    val["type"] = "login";
+    val["id"] = buffer_login_id;
+    val["pwd"] = buffer_login_pwd;
+ÏûÏ¢:
+    val["type"] = "send_message";
+    val["sender"] = {
+        {"sender_ID", buffer_login_id}
+    };
+    val["message"] = buffer_message;
