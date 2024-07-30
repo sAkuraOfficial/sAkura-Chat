@@ -23,6 +23,8 @@ add_subdirectory(external/hello_imgui)
 find_package(freetype CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread json)
 find_package(unofficial-lunasvg CONFIG REQUIRED)
+find_package(CURL REQUIRED)
+
 
 #客户端
 hello_imgui_add_app(client_sAkura_Chat client.cpp client.hpp extern.cpp extern.hpp)
@@ -30,7 +32,7 @@ target_link_libraries(client_sAkura_Chat PRIVATE Boost::system Boost::thread Boo
 
 #服务端
 add_executable(server_sAkura_Chat server.cpp server.hpp)
-target_link_libraries(server_sAkura_Chat PRIVATE Boost::system Boost::thread)
+target_link_libraries(server_sAkura_Chat PRIVATE Boost::system Boost::thread Boost::json CURL::libcurl)
 
 
 # $env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake

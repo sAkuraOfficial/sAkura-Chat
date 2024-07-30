@@ -105,7 +105,11 @@ struct ExampleAppLog
                             HelloImGui::ImageFromAsset("zh.jpg", ImVec2(75, 0));
                             ImGui::SameLine();
                         }
+                        ImVec2 pos = ImGui::GetCursorScreenPos();
+                        float warp = ImGui::GetWindowSize().x - 100;
+                        ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + warp);
                         ImGui::TextUnformatted(line_start, line_end);
+                        ImGui::PopTextWrapPos();
                     }
                 }
                 clipper.End();

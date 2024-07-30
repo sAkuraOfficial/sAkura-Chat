@@ -7,7 +7,7 @@
 #include <iostream>
 #include <misc/freetype/imgui_freetype.h>
 
-const int MAX_LENGTH = 1024; // send size max
+const int MAX_LENGTH = 4096; // send size max
 
 std::vector<std::string> incoming_messages; // 存放收到的消息
 std::vector<std::string> outgoing_messages; // 存放要发送的消息
@@ -19,7 +19,7 @@ bool server_reConnect = false;
 bool client_login = false;
 static char buffer_login_id[1024] = {0};
 static char buffer_login_pwd[1024] = {0};
-
+static bool GPU_MODE = false; // true:独立显卡.false:核心显卡
 ExampleAppLog message_window;
 char *reply = nullptr;
 inline bool Client();
@@ -87,7 +87,7 @@ HelloImGui::DockingParams client_sAkura_Chat::CreateDockingParams()
 void client_sAkura_Chat::CreateFont()
 {
     ImFont temp1 = {};
-    ImGui::GetIO().Fonts->AddFontFromFileTTF("assets/fonts/微软雅黑.ttf", 100, NULL, ImGui::GetIO().Fonts->GetGlyphRangesChineseFull());
+    ImGui::GetIO().Fonts->AddFontFromFileTTF("assets/fonts/微软雅黑.ttf", GPU_MODE ? 80 : 60, NULL, ImGui::GetIO().Fonts->GetGlyphRangesChineseFull());
     static ImWchar ranges[] = {0x1, 0x1FFFF, 0}; // 最后的0是用来标记结尾的
     static ImFontConfig cfg;
     cfg.OversampleH = cfg.OversampleV = 1;
@@ -112,7 +112,6 @@ client_sAkura_Chat::client_sAkura_Chat()
 
     p.appWindowParams.borderless = true;
     p.appWindowParams.borderlessHighlightColor = ImVec4(0, 0, 0, 0);
-    p.rememberSelectedAlternativeLayout = false;
     p.dockingParams = CreateDockingParams();
     p.callbacks.LoadAdditionalFonts = CreateFont;
     p.callbacks.SetupImGuiStyle = []() {
@@ -140,13 +139,20 @@ void client_sAkura_Chat::MessageTranslate()
                 // 接受消息
                 if (msg.at("sender").at("sender_ID").as_string().compare(buffer_login_id) == 0) // 自己发的消息
                 {
-                  
                 }
                 else
                 {
                     message_window.AddLog("%s:", msg.at("sender").at("sender_ID").as_string().c_str());
                     message_window.AddLog("%s\n", msg.at("message").as_string().c_str());
                 }
+            }
+            else if (msg["type"] == "AI_RESULT")
+            {
+                auto message = msg["message"];
+                auto choices = message.as_object().at("choices").as_array();
+                auto i_ = choices[0].as_object().at("message").at("content").as_string();
+                message_window.AddLog("%s:", msg.at("sender").at("sender_ID").as_string().c_str());
+                message_window.AddLog("%s\n", i_.c_str());
             }
             incoming_messages.erase(temp);
             cv.notify_one(); // 通知发送线程有新消息
@@ -164,7 +170,7 @@ void client_sAkura_Chat::ShowWindow_Control()
 {
 
     MessageTranslate(); // 处理消息
-
+    // ImGui::ShowDemoWindow();
     static std::string text_login_title = "登录";
     static std::string text_login_welcome = "您还未登录,请先登录!";
     static std::string text_login_switch_account = "您已经登录了,请问是否需要切换账号?";
@@ -289,7 +295,7 @@ void client_sAkura_Chat::ShowWindow_Control()
     {
         Window_List_Mode = Window_List_Mode_::History;
     }
-    ImGui::SetWindowFontScale(0.7); // 设置字体大小
+    ImGui::SetWindowFontScale(GPU_MODE ? 0.7 : 1.0); // 设置字体大小
     static std::string title_chat = "聊天", title_list = "通讯录", title_search = "搜索";
     ImGui::SetCursorPosX((ImGui::GetWindowSize().x - ImGui::CalcTextSize(title_chat.c_str()).x) / 2); // 文本居中显示
     ImGui::Text("聊天");
@@ -350,7 +356,7 @@ void client_sAkura_Chat::ShowWindow_List()
                 ImGui::Text("%s", id[i1].c_str());
 
                 ImGui::SetCursorPos({pos.x - 5, ImGui::CalcTextSize("你好").y + 10});
-                ImGui::SetWindowFontScale(0.6);
+                ImGui::SetWindowFontScale(GPU_MODE ? 0.6 : 1.0);
                 ImGui::Text("你吃了吗?😄");
                 ImGui::SetWindowFontScale(1.0);
 
@@ -376,7 +382,7 @@ void client_sAkura_Chat::ShowWindow_Chat()
     ImGui::Separator();
     static char buffer_message[2048] = {0};
     message_window.Draw("chat");
-    ImGui::SetNextItemWidth(-150);
+    ImGui::SetNextItemWidth(-150 * 2);
     ImGui::InputText("##message", buffer_message, sizeof(buffer_message));
     ImGui::SameLine();
     if (ImGui::Button("发送", ImVec2(130, 0)))
@@ -387,6 +393,24 @@ void client_sAkura_Chat::ShowWindow_Chat()
             message_window.AddLog("%s", "\n");
             boost::json::object val;
             val["type"] = "send_message";
+            val["sender"] = {
+                {"sender_ID", buffer_login_id}
+            };
+            val["message"] = buffer_message;
+            outgoing_messages.push_back(boost::json::serialize(val));
+            cv.notify_one();
+            buffer_message[0] = 0;
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("问AI", ImVec2(130, 0)))
+    {
+        if (buffer_message[0] != 0)
+        {
+            message_window.AddLog("%s", buffer_message);
+            message_window.AddLog("%s", "\n");
+            boost::json::object val;
+            val["type"] = "get_AI";
             val["sender"] = {
                 {"sender_ID", buffer_login_id}
             };
@@ -487,7 +511,7 @@ void receiveMessages(ip::tcp::socket &sock)
             size_t reply_length = {};
             read(sock, buffer(reinterpret_cast<char *>(&reply_length), sizeof(reply_length)));
 
-            char reply[MAX_LENGTH];
+            char reply[MAX_LENGTH] = {0};
             read(sock, buffer(reply, reply_length));
 
             {
@@ -512,7 +536,7 @@ void sendMessages(ip::tcp::socket &sock)
         {
             std::unique_lock<std::mutex> lock(mtx);
             cv.wait(lock, [] {
-                return !outgoing_messages.em pty();
+                return !outgoing_messages.empty();
             }); // 等待有消息可发送
 
             std::string message = outgoing_messages.back();
@@ -535,7 +559,7 @@ inline bool Client()
     {
         static io_context ioc;
         static ip::tcp::socket sock(ioc);
-        static ip::tcp::endpoint remote_ep(ip::address::from_string("192.168.5.29"), 10086);
+        static ip::tcp::endpoint remote_ep(ip::address::from_string("127.0.0.1"), 10086);
 
         boost::system::error_code ec = error::host_not_found; // 找不到主机
         sock.connect(remote_ep, ec);
@@ -543,6 +567,7 @@ inline bool Client()
         {
             server_ok = false;
             std::cout << "connect failed, code is " << ec.value() << " Message: " << ec.message() << std::endl;
+            MessageBox(0, ec.message().c_str(), NULL, NULL);
             return false;
         }
         server_ok = true;

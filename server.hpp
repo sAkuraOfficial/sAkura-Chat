@@ -36,7 +36,7 @@ class Session
     DisconnectHandler _disconnect_handler;
     enum
     {
-        max_length = 1024
+        max_length = 4096
     };
     char _data[max_length];
     char _data_length[sizeof(std::size_t)] = {0};

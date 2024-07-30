@@ -8,3 +8,9 @@
         {"sender_ID", buffer_login_id}
     };
     val["message"] = buffer_message;
+AI:
+    val["type"] = "get_AI";
+    val["sender"] = {
+        {"sender_ID", buffer_login_id}
+    };
+    val["message"] = buffer_message;
